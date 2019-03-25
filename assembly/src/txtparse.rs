@@ -1,9 +1,8 @@
 use std::vec::Vec;
 use super::cmdspec::*;
 
-pub fn makeword(cmd: &str, cmd_table: CmdTable) -> Word {
-    let toks : Vec<_> = cmd.split(" ").collect();
-
+pub fn makeword(cmd: &str, cmd_table: &CmdTable) -> Word {
+    let toks : Vec<_> = cmd.split_whitespace().collect();
     let search_res = cmd_table.get(toks[0]);
     let cmd_data;
 
@@ -33,4 +32,17 @@ pub fn makeword(cmd: &str, cmd_table: CmdTable) -> Word {
             (cmd_data.0 as u32) + (reg << 8) + (imm << 12)
         }
     }
+}
+
+pub fn parsecode(code: &str, cmd_table: &CmdTable) -> CpuState {
+    let lines = code.split("\n");
+    let mut cpu = CpuState::new();
+    let mut i = 0;
+
+    for l in lines {
+        cpu.mem[i] = makeword(l, cmd_table);
+        i = i + 1;
+    }
+
+    cpu
 }

@@ -10,15 +10,20 @@ pub type CmdTable = HashMap<&'static str, (u8, CmdFormat)>;
 
 pub fn init_cmd_table() -> CmdTable {
     let mut table = HashMap::new();
-    table.insert("halt",    (0, CmdFormat::RI));
-    table.insert("syscall", (1, CmdFormat::RI));
+    macro_rules! defcmd {
+        ($name:expr, $num:expr, $format:expr) => {
+            table.insert(stringify!($name), ($num, $format))
+        }
+    }
+    defcmd!(halt, 0, CmdFormat::RI);
+    defcmd!(syscall, 1, CmdFormat::RI);
 
     table
 }
 
 pub struct CpuState {
-    mem: Vec<Word>,
-    r: [Word; 16],
+    pub mem: Vec<Word>,
+    pub r: [Word; 16],
 }
 
 impl CpuState {
