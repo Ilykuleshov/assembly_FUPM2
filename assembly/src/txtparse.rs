@@ -3,13 +3,7 @@ use super::cmdspec::*;
 
 pub fn makeword(cmd: &str, cmd_table: &CmdTable) -> Word {
     let toks : Vec<_> = cmd.split_whitespace().collect();
-    let search_res = cmd_table.get(toks[0]);
-    let cmd_data;
-
-    match search_res {
-        Some(x) => cmd_data = x,
-        None    => panic!("undefined command")
-    }
+    let cmd_data = cmd_table.get_code(toks[0]);
 
     match cmd_data.1 {
         CmdFormat::RM => {
@@ -34,15 +28,17 @@ pub fn makeword(cmd: &str, cmd_table: &CmdTable) -> Word {
     }
 }
 
-pub fn parsecode(code: &str, cmd_table: &CmdTable) -> CpuState {
+pub fn parsecode(code: &str) -> CPU {
+    let mut cpu = CPU::new();
     let lines = code.split("\n");
-    let mut cpu = CpuState::new();
     let mut i = 0;
 
     for l in lines {
-        cpu.mem[i] = makeword(l, cmd_table);
+        cpu.state.mem[i] = makeword(l, &cpu.table);
         i = i + 1;
     }
+
+    cpu.state.r[14] = MEMSZ as Word;
 
     cpu
 }

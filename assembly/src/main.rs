@@ -1,11 +1,12 @@
 mod txtparse;
 mod cmdspec;
+mod procexec;
 
 fn main() {
-    let table = cmdspec::init_cmd_table();
-    let res = txtparse::parsecode("syscall r10 -1\nhalt r10 -1", &table);
+    let mut res = txtparse::parsecode("syscall r10 0\n halt r10 -1");
+    res.exec();
 
-    for cmd in res.mem {
+    for cmd in res.state.mem {
     	println!("{:#018b}\n", cmd);
     }
 }
