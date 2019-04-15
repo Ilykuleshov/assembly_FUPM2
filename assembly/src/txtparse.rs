@@ -71,7 +71,7 @@ pub fn parsecode(code: &std::string::String) -> CPU {
             cmdnum += 1;
         }
         !labeled
-    } { labeled = true; for (name, line) in labeltabel.iter() { println!("{} - {}", name, line); }}
+    } { labeled = true }
 
     cpu.state.r[14] = MEMSZ as Word;
 

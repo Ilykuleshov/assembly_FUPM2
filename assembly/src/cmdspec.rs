@@ -46,6 +46,10 @@ impl CmdTable {
                 (($word >> 8) & 0b1111u32) as usize, 
                 (($word.clone() as i32) >> 12) as u32
                 ) };
+            (JM => $word:expr) => { {
+                let (_, mem) : (_, u32) = prs!(RM => $word);
+                mem
+                } };
         }
 
         table.insert("halt", 0, RI, &|cpu, _| cpu.halt = true);
@@ -148,11 +152,43 @@ impl CmdTable {
 
             cpu.r[reg] &= imm;
         });
-        table.insert("jmp", 46, JMEM, &|cpu, arg| {
-            let (_, mem) : (_, u32) = prs!(RM => arg);
+        table.insert("cmp", 43, RR, &|cpu, arg| {
+            let (r1, r2, _) = prs!(RR => arg);
 
-            cpu.r[15] = mem.wrapping_sub(1);
+            if cpu.r[r1] == cpu.r[r2] {
+                cpu.f = Flag::E;
+            } else
+            if cpu.r[r1] >  cpu.r[r2] {
+                cpu.f = Flag::G;
+            } else {
+                cpu.f = Flag::L;
+            }
         });
+
+        impl CpuState {
+            pub fn jump(&mut self, adr: u32) {
+                self.r[15] = adr.wrapping_sub(1);
+            }
+        }
+
+        macro_rules! insert_jmp {
+            ($name:expr, $num:expr, $rel:tt, $obj:expr) => {
+                table.insert($name, $num, JMEM, &|cpu, arg| {
+                    let mem = prs!(JM => arg);
+                    if cpu.f $rel $obj {
+                        cpu.jump(mem);
+                    }
+                });
+            };
+        }
+        
+        insert_jmp!("jmp", 46, !=, Flag::NAN);
+        insert_jmp!("jne", 47, !=, Flag::E);
+        insert_jmp!("jeq", 48, ==, Flag::E);
+        insert_jmp!("jle", 49, !=, Flag::G);
+        insert_jmp!("jl",  50, ==, Flag::L);
+        insert_jmp!("jge", 51, !=, Flag::L);
+        insert_jmp!("jg",  52, ==, Flag::G);
 
         table
     }
@@ -160,15 +196,27 @@ impl CmdTable {
 
 pub const MEMSZ : usize = 1 << 20;
 
+#[derive(Clone, Copy)]
+pub enum Flag { NAN = 0, G = 1, E = 2, L = 3 }
+impl PartialEq for Flag {
+    fn eq(&self, other: &Flag) -> bool {
+        if *self as u32 == Flag::NAN as u32 || *other as u32 == Flag::NAN as u32 {
+            false
+        }
+        else { *self as u32 == *other as u32 }
+    }
+}
+
 pub struct CpuState {
     pub mem: Vec<Word>,
     pub r: [Word; 16],
+    pub f : Flag,
     pub halt: bool
 }
 
 impl CpuState {
     pub fn new() -> CpuState {
-        CpuState{ mem: vec![0; MEMSZ], r: [0; 16], halt: false }
+        CpuState{ mem: vec![0; MEMSZ], r: [0; 16], f : Flag::NAN, halt: false }
     }
 }
 
