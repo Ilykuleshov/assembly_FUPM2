@@ -150,7 +150,9 @@ impl CmdTable {
             cpu.r[r1] &= cpu.r[r1];
         })
         table.insert("andi", 18, RI, &|cpu, arg| {
+            let (reg, imm) = RI!(arg);
 
+            cpu.r[reg] &= imm;
         });
         table.insert("jmp", 46, RM, &|cpu, arg| {
             let (_, mem) = RM!(arg);
