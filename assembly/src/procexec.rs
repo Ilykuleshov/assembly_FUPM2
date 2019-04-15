@@ -9,7 +9,7 @@ impl CPU {
 		while !self.state.halt {
 			let word = self.state.mem[self.state.r[15] as usize];
 			self.docmd(&word);
-			self.state.r[15] += 1;
+			self.state.r[15] = self.state.r[15].wrapping_add(1);
 		}
 	}
 }
