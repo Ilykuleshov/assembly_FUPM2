@@ -12,45 +12,58 @@ type Func = &'static Fn(&mut CpuState, &Word);
 
 pub struct CmdTable {
     code: HashMap<&'static str, (u8, CmdFormat)>,
-    func: HashMap<u8, Func>
+    func: HashMap<u8, Func>,
+    name: HashMap<u8, &'static str>
 }
 
 use CmdFormat::*;
+
+macro_rules! prs {
+    (RR => $word:expr) => { (
+        (($word >> 8)  & 0b1111u32) as usize, 
+        (($word >> 12) & 0b1111u32) as usize, 
+        (($word.clone() as i32) >> 16) as u32
+        ) };
+    (RM => $word:expr) => { (
+        (($word >> 8) & 0b1111u32) as usize, 
+        ($word >> 12)
+        ) };
+    (RI => $word:expr) => { (
+        (($word >> 8) & 0b1111u32) as usize, 
+        (($word.clone() as i32) >> 12) as u32
+        ) };
+    (JM => $word:expr) => { {
+        let (_, mem) : (_, u32) = prs!(RM => $word);
+        mem
+        } };
+}
 
 impl CmdTable {
     pub fn insert(&mut self, name: &'static str, code: u8, format: CmdFormat, func: Func) {
         self.code.insert(name, (code, format));
         self.func.insert(code, func);
+        self.name.insert(code, name);
     }
 
-    pub fn get_code(&self, name: &str) -> &(u8, CmdFormat) { self.code.get(name).expect(&format!("Bad cmd name! ({})", name)) }
-    pub fn get_func (&self, code: &u8) -> &Func { self.func.get(code).expect(&format!("Bad cmd code! ({})", code)) }
+    pub fn get_code(&self, name: &str) -> &(u8, CmdFormat) {
+        self.code.get(name)
+            .expect(&format!("Bad cmd name! ({})", name)) 
+    }
+    pub fn get_func(&self, code: &u8) -> &Func {
+        self.func.get(code)
+            .expect(&format!("Bad cmd code! ({})", code))
+    }
+    pub fn get_name(&self, code: &u8)  -> &str {
+        self.name.get(code)
+            .expect(&format!("Bad cmd code! ({})", code))
+    }
 
     pub fn new() -> CmdTable {
         let mut table = CmdTable {
             code: HashMap::new(),
-            func: HashMap::new()
+            func: HashMap::new(),
+            name: HashMap::new()
         };
-
-        macro_rules! prs {
-            (RR => $word:expr) => { (
-                (($word >> 8)  & 0b1111u32) as usize, 
-                (($word >> 12) & 0b1111u32) as usize, 
-                (($word.clone() as i32) >> 16) as u32
-                ) };
-            (RM => $word:expr) => { (
-                (($word >> 8) & 0b1111u32) as usize, 
-                ($word >> 12)
-                ) };
-            (RI => $word:expr) => { (
-                (($word >> 8) & 0b1111u32) as usize, 
-                (($word.clone() as i32) >> 12) as u32
-                ) };
-            (JM => $word:expr) => { {
-                let (_, mem) : (_, u32) = prs!(RM => $word);
-                mem
-                } };
-        }
 
         use std::f64;
         macro_rules! convd {
@@ -61,7 +74,7 @@ impl CmdTable {
             ($float:expr) => { {
                 let num : u64 = $float.to_bits();
                 let fst : u32 = (num & 0b11111111111111111111111111111111) as u32;
-                let snd : u32 = (num << 32) as u32;
+                let snd : u32 = (num >> 32) as u32;
 
                 (fst, snd)
             } };
@@ -125,8 +138,8 @@ impl CmdTable {
             }
 
             fn push(&mut self, val: Word) {
-                self.mem[self.r[14] as usize] = val;
                 self.r[14] -= 1;
+                self.mem[self.r[14] as usize] = val;
             }
 
             fn pop(&mut self) -> u32 {
@@ -167,10 +180,10 @@ impl CmdTable {
                 0 => cpu.halt = true,
                 100 => cpu.r[reg] = parseline!(u32),
                 101 => cpu.writed(parseline!(f64), reg),
-                102 => println!("{}", cpu.r[reg]),
-                103 => println!("{}", cpu.scand(reg)),
+                102 => print!("{}", cpu.r[reg]),
+                103 => print!("{}", cpu.scand(reg)),
                 104 => cpu.r[reg] = parseline!(char) as u32,
-                105 => println!("{}", (cpu.r[reg] as u8) as char),
+                105 => print!("{}", (cpu.r[reg] as u8) as char),
 
                 _ => panic!("Bad syscall argument!")
             }
@@ -278,18 +291,19 @@ impl CmdTable {
         table.insert("calli", 41, JMEM, &|cpu, arg| {
             let adr = prs!(JM => arg);
 
-            cpu.push(cpu.r[15]);
+            cpu.push(cpu.r[15] + 1);
             cpu.jump(adr);
         });
 
         table.insert("ret", 42, JMEM, &|cpu, arg| {
             let lay = prs!(JM => arg);
+
+            let ret_adr = cpu.pop();
             for _ in 0..lay {
                 cpu.pop();
             }
 
-            let ret_adr = cpu.pop();
-            cpu.jump(ret_adr + 1);
+            cpu.jump(ret_adr);
         });
 
         table.insert("cmp", 43, RR, &|cpu, arg| {
@@ -359,6 +373,17 @@ impl CmdTable {
             cpu.store(r1, cpu.r[r2] + imm);
             cpu.store(r1 + 1, cpu.r[r2] + imm + 1);
         });
+
+        table.insert("$STACK", 255, JMEM, &|cpu, arg| {
+            let num = prs!(JM => arg);
+
+            println!("STACK DUMP:");
+            for i in 0..num {
+                print!("[{}] => {:?}", i, cpu.mem[MEMSZ - (i + 1) as usize]);
+                if MEMSZ as u32 - i - 1 == cpu.r[14] { print!("*"); }
+                print!("\n");
+            }
+        });
         table
     }
 }
@@ -376,16 +401,23 @@ impl PartialEq for Flag {
     }
 }
 
+pub mod dbmode {
+    pub const CMD: u8 = 0b001;
+    pub const ARG: u8 = 0b010;
+    pub const REG: u8 = 0b100;   
+}
+
 pub struct CpuState {
     pub mem: Vec<Word>,
     pub r: [Word; 16],
     pub f : Flag,
-    pub halt: bool
+    pub halt: bool,
+    pub mode: u8
 }
 
 impl CpuState {
     pub fn new() -> CpuState {
-        CpuState{ mem: vec![0; MEMSZ], r: [0; 16], f : Flag::NAN, halt: false }
+        CpuState{ mem: vec![0; MEMSZ], r: [0; 16], f : Flag::NAN, halt: false, mode: 0 }
     }
 }
 

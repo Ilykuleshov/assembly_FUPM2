@@ -55,19 +55,26 @@ pub fn makeword(toks: Vec<&str>, cmd_table: &CmdTable, labeltabel: &HashMap<&str
 
 pub fn parsecode(code: &str) -> CPU {
     let mut cpu = CPU::new();
-    let lines = code.lines();
+    let mut lines = code.lines();
+    if code.starts_with('$') {
+        let flags;
+        match lines.next() {
+            Some(x) => flags = x,
+            _ => panic!("Smth went wrong!")
+        }
+
+        if flags.contains("CMD") { cpu.state.mode |= dbmode::CMD; }
+        if flags.contains("ARG") { cpu.state.mode |= dbmode::ARG; }
+        if flags.contains("REG") { cpu.state.mode |= dbmode::REG; }
+    }
     let mut labeltabel : HashMap<&str, u32> = HashMap::new();
     let mut labeled = false;
 
     while {
         let mut cmdnum : u32 = 0;
         for line in lines.clone() {
-            if line.chars().all(char::is_whitespace) {
-                continue;
-            }
-
             //Remove comments
-            let line = line.split_terminator(';').nth(0).unwrap().trim();
+            let mut line = line.split_terminator(';').nth(0).unwrap().trim();
 
             //Check if label
             match line.find(':') {
@@ -76,11 +83,13 @@ pub fn parsecode(code: &str) -> CPU {
                         labeltabel.insert(&line[0..size], cmdnum);
                     }
 
-                    continue;
+                    line = &line[size + 1..];
                 }
 
-                _ => {}
+                None => {}
             }
+
+            if line.chars().all(char::is_whitespace) { continue; }
 
             if labeled && line != "word" {
                 let toks : Vec<&str> = line.split_whitespace().collect();
@@ -96,7 +105,7 @@ pub fn parsecode(code: &str) -> CPU {
         !labeled
     } { labeled = true }
 
-    cpu.state.r[14] = (MEMSZ - 1) as Word;
+    cpu.state.r[14] = MEMSZ as Word;
 
     cpu
 }
