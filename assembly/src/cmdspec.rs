@@ -101,6 +101,18 @@ impl CmdTable {
             };
         }
 
+        macro_rules! parseline {
+            ($T:ty) => {{
+                let mut in_txt = String::new();
+                io::stdin().read_line(&mut in_txt)
+                    .expect("Failed to read from stdin");
+                let in_num = in_txt.trim().parse::<$T>()
+                    .expect(&format!("STDin: expected {}, got {}", stringify!($T), in_txt));
+
+                in_num
+            }};
+        }
+
         impl CpuState {
             fn scand(&self, reg: usize) -> f64 {
                 convd!(self.r[reg], self.r[reg + 1])
@@ -145,12 +157,13 @@ impl CmdTable {
 
             match imm {
                 0 => cpu.halt = true,
-                100 => {
-                    let mut in_txt = String::new();
-                    io::stdin().read_line(&mut in_txt).expect("Failed to read from stdin");
-                    cpu.r[reg] = in_txt.trim().parse::<u32>().expect("Failed to parse stdin");
-                },
+                100 => cpu.r[reg] = parseline!(u32),
+                101 => cpu.writed(parseline!(f64), reg),
                 102 => println!("{}", cpu.r[reg]),
+                103 => println!("{}", cpu.scand(reg)),
+                104 => cpu.r[reg] = parseline!(char) as u32,
+                105 => println!("{}", (cpu.r[reg] as u8) as char),
+
                 _ => panic!("Bad syscall argument!")
             }
         });
@@ -254,8 +267,21 @@ impl CmdTable {
             cpu.jump(cpu.r[r2] + imm);
         });
 
-        table.insert("calli", 41, RI, &|cpu, arg| {
-            
+        table.insert("calli", 41, JMEM, &|cpu, arg| {
+            let adr = prs!(JM => arg);
+
+            cpu.push(cpu.r[15]);
+            cpu.jump(adr);
+        });
+
+        table.insert("ret", 42, JMEM, &|cpu, arg| {
+            let lay = prs!(JM => arg);
+            for _ in 0..lay {
+                cpu.pop();
+            }
+
+            let ret_adr = cpu.pop();
+            cpu.jump(ret_adr + 1);
         });
 
         table.insert("cmp", 43, RR, &|cpu, arg| {

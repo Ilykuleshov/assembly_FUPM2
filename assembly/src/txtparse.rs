@@ -61,23 +61,32 @@ pub fn parsecode(code: &str) -> CPU {
 
     while {
         let mut cmdnum : u32 = 0;
-        for l in lines.clone() {
-            if l.chars().all(char::is_whitespace) {
+        for line in lines.clone() {
+            if line.chars().all(char::is_whitespace) {
                 continue;
             }
 
-            if l.chars().last() == Some(':') {
-                if !labeled {
-                    let len = l.chars().count();
-                    labeltabel.insert(&l[..len - 1], cmdnum);
+            //Remove comments
+            let line = line.split_terminator(';').nth(0).unwrap().trim();
+
+            //Check if label
+            match line.find(':') {
+                Some(size) =>  {
+                    if !labeled {
+                        labeltabel.insert(&line[0..size], cmdnum);
+                    }
+
+                    continue;
                 }
-                continue;
+
+                _ => {}
             }
 
-            if labeled && l.trim() != "word" {
-                let toks : Vec<&str> = l.split_whitespace().collect();
+            if labeled && line != "word" {
+                let toks : Vec<&str> = line.split_whitespace().collect();
                 if toks[0] == "end" {
-                    cpu.state.r[15] = *labeltabel.get(toks[1]).expect(&format!("Invalid label! {}", toks[1]));
+                    cpu.state.r[15] = *labeltabel.get(toks[1])
+                                                 .expect(&format!("Invalid label! {}", toks[1]));
                 } else {
                     cpu.state.mem[cmdnum as usize] = makeword(toks, &cpu.table, &labeltabel);
                 }
