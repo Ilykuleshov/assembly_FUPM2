@@ -52,6 +52,93 @@ impl CmdTable {
                 } };
         }
 
+        use std::f64;
+        macro_rules! convd {
+            ($fsti:expr, $sndi:expr) => { {
+                let num : u64 = $fsti as u64 + (($sndi as u64) << 32);
+                f64::from_bits(num)
+            } };
+            ($float:expr) => { {
+                let num : u64 = $float.to_bits();
+                let fst : u32 = (num & 0b11111111111111111111111111111111) as u32;
+                let snd : u32 = (num << 32) as u32;
+
+                (fst, snd)
+            } };
+        }
+
+        macro_rules! insert {
+            (op => $name:expr, $num:expr, $op:tt) => {{
+                table.insert($name, $num, RR, &|cpu, arg| {
+                    let (r1, r2, imm) = prs!(RR => arg);
+
+                    cpu.r[r1] $op cpu.r[r2].wrapping_add(imm);
+                })
+            }};
+            (opi => $name:expr, $num:expr, $op:tt) => {{
+                table.insert($name, $num, RI, &|cpu, arg| {
+                    let (reg, imm) = prs!(RI => arg);
+
+                    cpu.r[reg] $op imm;
+                });
+            }};
+            (opd => $name:expr, $num:expr, $op:tt) => {{
+                table.insert($name, $num, RR, &|cpu, arg| {
+                    let (r1, r2, _) = prs!(RR => arg);
+
+                    let f1 = cpu.scand(r1);
+                    let f2 = cpu.scand(r2);
+                    cpu.writed(f1 $op f2, r1);
+                });
+            }};
+            (jmp => $name:expr, $num:expr, $rel:tt, $obj:expr) => {
+                table.insert($name, $num, JMEM, &|cpu, arg| {
+                    let mem = prs!(JM => arg);
+                    if cpu.f $rel $obj {
+                        cpu.jump(mem);
+                    }
+                });
+            };
+        }
+
+        impl CpuState {
+            fn scand(&self, reg: usize) -> f64 {
+                convd!(self.r[reg], self.r[reg + 1])
+            }
+
+            fn writed(&mut self, f: f64, reg: usize) {
+                let (u1, u2) = convd!(f);
+                self.r[reg] = u1;
+                self.r[reg + 1] = u2;
+            }
+
+            fn push(&mut self, val: Word) {
+                self.mem[self.r[14] as usize] = val;
+                self.r[14] -= 1;
+            }
+
+            fn pop(&mut self) -> u32 {
+                let ret = self.mem[self.r[14] as usize];
+                self.r[14] += 1;
+                ret
+            }
+
+            fn cmp<T:PartialOrd>(&mut self, val1: T, val2: T) {
+                if val1 < val2 {
+                    self.f = Flag::L;
+                } else
+                if val1 > val2 {
+                    self.f = Flag::G; 
+                } else {
+                    self.f = Flag::E;
+                }
+            }
+
+            fn jump(&mut self, adr: u32) {
+                self.r[15] = adr.wrapping_sub(1);
+            }
+        }
+
         table.insert("halt", 0, RI, &|cpu, _| cpu.halt = true);
         table.insert("syscall", 1, RI, &|cpu, arg| {
             let (reg, imm) = prs!(RI => arg);
@@ -67,21 +154,14 @@ impl CmdTable {
                 _ => panic!("Bad syscall argument!")
             }
         });
-        table.insert("add", 2, RR, &|cpu, arg| {
-            let (r1, r2, imm) = prs!(RR => arg);
 
-            cpu.r[r1] += cpu.r[r2].wrapping_add(imm);
-        });
+        insert!(op => "add", 2, +=);
         table.insert("addi", 3, RI, &|cpu, arg| {
             let (reg, imm) = prs!(RI => arg);
 
             cpu.r[reg] = cpu.r[reg].wrapping_add(imm);
         });
-        table.insert("sub", 4, RR, &|cpu, arg| {
-            let (r1, r2, imm) = prs!(RR => arg);
-
-            cpu.r[r1] -= cpu.r[r2].wrapping_add(imm);
-        });
+        insert!(op => "sub", 4, -=);
         table.insert("subi", 5, RI, &|cpu, arg| {
             let (reg, imm) = prs!(RI => arg);
 
@@ -117,78 +197,90 @@ impl CmdTable {
             cpu.r[reg] /= imm;
             cpu.r[reg + 1] = r;
         });
-        table.insert("lc", 12, RI, &|cpu, arg| {
-            let (reg, imm) = prs!(RI => arg);
+        insert!(opi => "lc",   12, =);
+        insert!(op  => "shl",  13, <<=);
+        insert!(opi => "shli", 14, <<=);
+        insert!(op  => "shr",  15, >>=);
+        insert!(opi => "shri", 16, >>=);
+        insert!(op  => "and",  17, &=);
+        insert!(opi => "andi", 18, &=);
+        insert!(op  => "or",   19, |=);
+        insert!(opi => "ori",  20, |=);
+        insert!(op  => "xor",  21, ^=);
+        insert!(opi => "xori", 22, ^=);
+        table.insert("not", 23, RI, &|cpu, arg| {
+            let (reg, _) = prs!(RI => arg);
 
-            cpu.r[reg] = imm;
+            cpu.r[reg] = !cpu.r[reg];
         });
-        table.insert("shl", 13, RR, &|cpu, arg| {
+        insert!(op  => "mov",  24, =);
+
+        insert!(opd => "addd", 32, +);
+        insert!(opd => "subd", 33, -);
+        insert!(opd => "muld", 34, *);
+        insert!(opd => "divd", 35, /);
+        
+        table.insert("itod", 36, RR, &|cpu, arg| {
             let (r1, r2, _) = prs!(RR => arg);
 
-            cpu.r[r1] <<= cpu.r[r2];
+            cpu.writed(cpu.r[r2] as f64, r1);
         });
-        table.insert("shli", 14, RI, &|cpu, arg| {
-            let (reg, imm) = prs!(RI => arg);
-
-            cpu.r[reg] <<= imm;
-        });
-        table.insert("shr", 15, RR, &|cpu, arg| {
+        table.insert("dtoi", 37, RR, &|cpu, arg| {
             let (r1, r2, _) = prs!(RR => arg);
 
-            cpu.r[r1] >>= cpu.r[r2]
+            let src = cpu.scand(r2).trunc();
+            let res;
+            if src < 0.0 { res = (src as i32) as u32; }
+            else         { res = src as u32; }
+
+            cpu.r[r1] = res;
         });
-        table.insert("shri", 16, RI, &|cpu, arg| {
+
+        table.insert("push", 38, RI, &|cpu, arg| {
             let (reg, imm) = prs!(RI => arg);
-
-            cpu.r[reg] >>= imm;
+            cpu.push(cpu.r[reg] + imm);
         });
-        table.insert("and", 17, RR, &|cpu, arg| {
-            let (r1, r2, _) = prs!(RR => arg);
 
-            cpu.r[r1] &= cpu.r[r2];
-        });
-        table.insert("andi", 18, RI, &|cpu, arg| {
+        table.insert("pop", 39, RI, &|cpu, arg| {
             let (reg, imm) = prs!(RI => arg);
-
-            cpu.r[reg] &= imm;
+            cpu.r[reg] = cpu.pop() + imm;
         });
+
+        table.insert("call", 40, RR, &|cpu, arg| {
+            let (r1, r2, imm) = prs!(RR => arg);
+
+            cpu.push(cpu.r[15]);
+            cpu.r[r1] = cpu.r[15];
+            cpu.jump(cpu.r[r2] + imm);
+        });
+
+        table.insert("calli", 41, RI, &|cpu, arg| {
+            
+        });
+
         table.insert("cmp", 43, RR, &|cpu, arg| {
             let (r1, r2, _) = prs!(RR => arg);
 
-            if cpu.r[r1] == cpu.r[r2] {
-                cpu.f = Flag::E;
-            } else
-            if cpu.r[r1] >  cpu.r[r2] {
-                cpu.f = Flag::G;
-            } else {
-                cpu.f = Flag::L;
-            }
+            cpu.cmp(cpu.r[r1], cpu.r[r2]);
         });
+        table.insert("cmpi", 44, RI, &|cpu, arg| {
+            let (reg, imm) = prs!(RI => arg);
 
-        impl CpuState {
-            pub fn jump(&mut self, adr: u32) {
-                self.r[15] = adr.wrapping_sub(1);
-            }
-        }
+            cpu.cmp(cpu.r[reg], imm);
+        });
+        table.insert("cmpd", 45, RR, &|cpu, arg| {
+            let (r1, r2, _) = prs!(RR => arg);
 
-        macro_rules! insert_jmp {
-            ($name:expr, $num:expr, $rel:tt, $obj:expr) => {
-                table.insert($name, $num, JMEM, &|cpu, arg| {
-                    let mem = prs!(JM => arg);
-                    if cpu.f $rel $obj {
-                        cpu.jump(mem);
-                    }
-                });
-            };
-        }
+            cpu.cmp(cpu.scand(r1), cpu.scand(r2));
+        });
         
-        insert_jmp!("jmp", 46, !=, Flag::NAN);
-        insert_jmp!("jne", 47, !=, Flag::E);
-        insert_jmp!("jeq", 48, ==, Flag::E);
-        insert_jmp!("jle", 49, !=, Flag::G);
-        insert_jmp!("jl",  50, ==, Flag::L);
-        insert_jmp!("jge", 51, !=, Flag::L);
-        insert_jmp!("jg",  52, ==, Flag::G);
+        insert!(jmp => "jmp", 46, !=, Flag::NAN);
+        insert!(jmp => "jne", 47, !=, Flag::E);
+        insert!(jmp => "jeq", 48, ==, Flag::E);
+        insert!(jmp => "jle", 49, !=, Flag::G);
+        insert!(jmp => "jl",  50, ==, Flag::L);
+        insert!(jmp => "jge", 51, !=, Flag::L);
+        insert!(jmp => "jg",  52, ==, Flag::G);
 
         table
     }
