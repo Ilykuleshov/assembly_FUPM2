@@ -17,7 +17,7 @@ pub fn makeword(toks: Vec<&str>, cmd_table: &CmdTable, labeltabel: &HashMap<&str
 
     macro_rules! checkargs {
         ($num:expr) => (if toks.len() - 1 != $num {
-            panic!("Invalid amount of args ({}) for {}", toks.len(), toks[0]);
+            panic!("Invalid amount of args ({:?}) for {}", toks, toks[0]);
         })
     }
 

@@ -149,6 +149,14 @@ impl CmdTable {
             fn jump(&mut self, adr: u32) {
                 self.r[15] = adr.wrapping_sub(1);
             }
+
+            fn load(&mut self, adr: u32, reg: usize) {
+                self.r[reg] = self.mem[adr as usize];
+            }
+
+            fn store(&mut self, reg: usize, adr: u32) {
+                self.mem[adr as usize] = self.r[reg];
+            }
         }
 
         table.insert("halt", 0, RI, &|cpu, _| cpu.halt = true);
@@ -308,6 +316,49 @@ impl CmdTable {
         insert!(jmp => "jge", 51, !=, Flag::L);
         insert!(jmp => "jg",  52, ==, Flag::G);
 
+        table.insert("load", 64, RM, &|cpu, arg| {
+            let (reg, mem) = prs!(RM => arg);
+            cpu.load(mem, reg);
+        });
+
+        table.insert("store", 65, RM, &|cpu, arg| {
+            let (reg, mem) = prs!(RM => arg);
+            cpu.store(reg, mem);
+        });
+
+        table.insert("load2", 66, RM, &|cpu, arg| {
+            let (reg, mem) = prs!(RM => arg);
+            cpu.load(mem, reg);
+            cpu.load(mem + 1, reg + 1);
+        });
+
+        table.insert("store2", 67, RM, &|cpu, arg| {
+            let (reg, mem) = prs!(RM => arg);
+            cpu.store(reg, mem);
+            cpu.store(reg + 1, mem + 1);
+        });
+
+        table.insert("loadr", 68, RR, &|cpu, arg| {
+            let (r1, r2, imm) = prs!(RR => arg);
+            cpu.load(cpu.r[r2] + imm, r1);
+        });
+
+        table.insert("storer", 69, RR, &|cpu, arg| {
+            let (r1, r2, imm) = prs!(RR => arg);
+            cpu.store(r1, cpu.r[r2] + imm);
+        });
+
+        table.insert("loadr2", 70, RR, &|cpu, arg| {
+            let (r1, r2, imm) = prs!(RR => arg);
+            cpu.load(cpu.r[r2] + imm, r1);
+            cpu.load(cpu.r[r2] + imm + 1, r1 + 1);
+        });
+
+        table.insert("storer2", 71, RR, &|cpu, arg| {
+            let (r1, r2, imm) = prs!(RR => arg);
+            cpu.store(r1, cpu.r[r2] + imm);
+            cpu.store(r1 + 1, cpu.r[r2] + imm + 1);
+        });
         table
     }
 }
