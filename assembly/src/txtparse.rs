@@ -69,9 +69,10 @@ pub fn parsecode(code: &str) -> CPU {
     }
     let mut labeltabel : HashMap<&str, u32> = HashMap::new();
     let mut labeled = false;
+    let mut cmdnum : u32 = 0;
 
     while {
-        let mut cmdnum : u32 = 0;
+        cmdnum = 0;
         for line in lines.clone() {
             //Remove comments
             let mut line = line.split_terminator(';').nth(0).unwrap().trim();
@@ -105,6 +106,7 @@ pub fn parsecode(code: &str) -> CPU {
         !labeled
     } { labeled = true }
 
+    cpu.state.progsz = cmdnum;
     cpu.state.r[14] = MEMSZ as Word;
 
     cpu

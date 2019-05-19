@@ -1,26 +1,8 @@
 use std::collections::HashMap;
 use std::vec::Vec;
 
-macro_rules! prs {
-    (RR => $word:expr) => { (
-        (($word >> 8)  & 0b1111u32) as usize, 
-        (($word >> 12) & 0b1111u32) as usize, 
-        (($word.clone() as i32) >> 16) as u32
-        ) };
-    (RM => $word:expr) => { (
-        (($word >> 8) & 0b1111u32) as usize, 
-        ($word >> 12)
-        ) };
-    (RI => $word:expr) => { (
-        (($word >> 8) & 0b1111u32) as usize, 
-        (($word.clone() as i32) >> 12) as u32
-        ) };
-    (JM => $word:expr) => { {
-        let (_, mem) : (_, u32) = prs!(RM => $word);
-        mem
-        } };
-}
-
+#[macro_use]
+mod macros;
 mod cmdspec;
 mod cpu_impl;
 mod state_cache;
@@ -85,12 +67,13 @@ pub struct CpuState {
     pub r: [Word; 16],
     pub f : Flag,
     pub halt: bool,
-    pub mode: u8
+    pub mode: u8,
+    pub progsz : u32
 }
 
 impl CpuState {
     pub fn new() -> CpuState {
-        CpuState{ mem: vec![0; MEMSZ], r: [0; 16], f : Flag::NAN, halt: false, mode: 0 }
+        CpuState{ mem: vec![0; MEMSZ], r: [0; 16], f : Flag::NAN, halt: false, mode: 0, progsz: 0 }
     }
 }
 

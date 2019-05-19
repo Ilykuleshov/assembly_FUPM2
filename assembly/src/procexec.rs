@@ -2,7 +2,7 @@ use super::cpu::*;
 
 impl CPU {
 	fn docmd(&mut self, cmd: &Word) {
-		let code = &((cmd & 0b11111111) as u8);
+		let code = &getcode!(cmd);
 		if self.state.mode & dbmode::CMD != 0 {
 			let name = self.table.get_name(code);
 			println!("CMD=({})", name);
