@@ -1,4 +1,3 @@
-#[macro_use]
 use super::*;
 use std::io;
 

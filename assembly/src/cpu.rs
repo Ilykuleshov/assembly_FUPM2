@@ -23,6 +23,7 @@ macro_rules! prs {
 
 mod cmdspec;
 mod cpu_impl;
+mod state_cache;
 
 pub type Word = u32;
 pub type DWord = u64;
