@@ -1,4 +1,4 @@
-use super::cmdspec::*;
+use super::cpu::*;
 
 impl CPU {
 	fn docmd(&mut self, cmd: &Word) {

@@ -1,4 +1,4 @@
-use super::cmdspec::*;
+use super::cpu::*;
 
 use std::collections::HashMap;
 use std::vec::Vec;

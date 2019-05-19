@@ -1,84 +1,16 @@
-use std::collections::HashMap;
-use std::vec::Vec;
+#[macro_use]
+use super::*;
 use std::io;
-
-pub type Word = u32;
-pub type DWord = u64;
-
-#[derive(Clone)]
-pub enum CmdFormat { RM, RR, RI, JMEM }
-
-type Func = &'static Fn(&mut CpuState, &Word);
-
-pub struct CmdTable {
-    code: HashMap<&'static str, (u8, CmdFormat)>,
-    func: HashMap<u8, Func>,
-    name: HashMap<u8, &'static str>
-}
 
 use CmdFormat::*;
 
-macro_rules! prs {
-    (RR => $word:expr) => { (
-        (($word >> 8)  & 0b1111u32) as usize, 
-        (($word >> 12) & 0b1111u32) as usize, 
-        (($word.clone() as i32) >> 16) as u32
-        ) };
-    (RM => $word:expr) => { (
-        (($word >> 8) & 0b1111u32) as usize, 
-        ($word >> 12)
-        ) };
-    (RI => $word:expr) => { (
-        (($word >> 8) & 0b1111u32) as usize, 
-        (($word.clone() as i32) >> 12) as u32
-        ) };
-    (JM => $word:expr) => { {
-        let (_, mem) : (_, u32) = prs!(RM => $word);
-        mem
-        } };
-}
-
 impl CmdTable {
-    pub fn insert(&mut self, name: &'static str, code: u8, format: CmdFormat, func: Func) {
-        self.code.insert(name, (code, format));
-        self.func.insert(code, func);
-        self.name.insert(code, name);
-    }
-
-    pub fn get_code(&self, name: &str) -> &(u8, CmdFormat) {
-        self.code.get(name)
-            .expect(&format!("Bad cmd name! ({})", name)) 
-    }
-    pub fn get_func(&self, code: &u8) -> &Func {
-        self.func.get(code)
-            .expect(&format!("Bad cmd code! ({})", code))
-    }
-    pub fn get_name(&self, code: &u8)  -> &str {
-        self.name.get(code)
-            .expect(&format!("Bad cmd code! ({})", code))
-    }
-
     pub fn new() -> CmdTable {
         let mut table = CmdTable {
             code: HashMap::new(),
             func: HashMap::new(),
             name: HashMap::new()
         };
-
-        use std::f64;
-        macro_rules! convd {
-            ($fsti:expr, $sndi:expr) => { {
-                let num : u64 = $fsti as u64 + (($sndi as u64) << 32);
-                f64::from_bits(num)
-            } };
-            ($float:expr) => { {
-                let num : u64 = $float.to_bits();
-                let fst : u32 = (num & 0b11111111111111111111111111111111) as u32;
-                let snd : u32 = (num >> 32) as u32;
-
-                (fst, snd)
-            } };
-        }
 
         macro_rules! insert {
             (op => $name:expr, $num:expr, $op:tt) => {{
@@ -124,52 +56,6 @@ impl CmdTable {
 
                 in_num
             }};
-        }
-
-        impl CpuState {
-            fn scand(&self, reg: usize) -> f64 {
-                convd!(self.r[reg], self.r[reg + 1])
-            }
-
-            fn writed(&mut self, f: f64, reg: usize) {
-                let (u1, u2) = convd!(f);
-                self.r[reg] = u1;
-                self.r[reg + 1] = u2;
-            }
-
-            fn push(&mut self, val: Word) {
-                self.r[14] -= 1;
-                self.mem[self.r[14] as usize] = val;
-            }
-
-            fn pop(&mut self) -> u32 {
-                let ret = self.mem[self.r[14] as usize];
-                self.r[14] += 1;
-                ret
-            }
-
-            fn cmp<T:PartialOrd>(&mut self, val1: T, val2: T) {
-                if val1 < val2 {
-                    self.f = Flag::L;
-                } else
-                if val1 > val2 {
-                    self.f = Flag::G; 
-                } else {
-                    self.f = Flag::E;
-                }
-            }
-
-            fn jump(&mut self, adr: u32) {
-                self.r[15] = adr.wrapping_sub(1);
-            }
-
-            fn load(&mut self, adr: u32, reg: usize) {
-                self.r[reg] = self.mem[adr as usize];
-            }
-
-            fn store(&mut self, reg: usize, adr: u32) {
-                self.mem[adr as usize] = self.r[reg];
-            }
         }
 
         table.insert("halt", 0, RI, &|cpu, _| cpu.halt = true);
@@ -385,49 +271,5 @@ impl CmdTable {
             }
         });
         table
-    }
-}
-
-pub const MEMSZ : usize = 1 << 20;
-
-#[derive(Clone, Copy)]
-pub enum Flag { NAN = 0, G = 1, E = 2, L = 3 }
-impl PartialEq for Flag {
-    fn eq(&self, other: &Flag) -> bool {
-        if *self as u32 == Flag::NAN as u32 || *other as u32 == Flag::NAN as u32 {
-            false
-        }
-        else { *self as u32 == *other as u32 }
-    }
-}
-
-pub mod dbmode {
-    pub const CMD: u8 = 0b001;
-    pub const ARG: u8 = 0b010;
-    pub const REG: u8 = 0b100;   
-}
-
-pub struct CpuState {
-    pub mem: Vec<Word>,
-    pub r: [Word; 16],
-    pub f : Flag,
-    pub halt: bool,
-    pub mode: u8
-}
-
-impl CpuState {
-    pub fn new() -> CpuState {
-        CpuState{ mem: vec![0; MEMSZ], r: [0; 16], f : Flag::NAN, halt: false, mode: 0 }
-    }
-}
-
-pub struct CPU {
-    pub state: CpuState,
-    pub table: CmdTable
-}
-
-impl CPU {
-    pub fn new() -> CPU {
-        CPU{ state: CpuState::new(), table: CmdTable::new() }
     }
 }
