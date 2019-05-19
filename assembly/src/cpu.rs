@@ -40,7 +40,6 @@ impl CmdTable {
         self.name.get(code)
             .expect(&format!("Bad cmd code! ({})", code))
     }
-
 }
 
 pub const MEMSZ : usize = 1 << 20;

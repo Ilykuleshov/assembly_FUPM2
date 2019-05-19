@@ -27,7 +27,7 @@ pub fn makeword(toks: Vec<&str>, cmd_table: &CmdTable, labeltabel: &HashMap<&str
             let reg : u32 = partok!(r => 1);
             let adr : u32 = partok!(m => 2);
 
-            (cmd_data.0 as u32) + (reg << 8) + (adr << 12)
+            ((cmd_data.0 as u32) << 24) + (reg << 20) + adr
         },
         CmdFormat::RR => {
             checkargs!(3);
@@ -35,20 +35,20 @@ pub fn makeword(toks: Vec<&str>, cmd_table: &CmdTable, labeltabel: &HashMap<&str
             let reg2 : u32 = partok!(r => 2);
             let imm  : u32 = partok!(i => 3);
 
-            (cmd_data.0 as u32) + (reg1 << 8) + (reg2 << 12) + (imm << 16)
+            ((cmd_data.0 as u32) << 24) + (reg1 << 20) + (reg2 << 16) + (imm & ((2 << 16) - 1))
         },
         CmdFormat::RI => {
             checkargs!(2);
             let reg : u32 = partok!(r => 1);
             let imm : u32 = partok!(i => 2);
 
-            (cmd_data.0 as u32) + (reg << 8) + (imm << 12)
+            ((cmd_data.0 as u32) << 24) + (reg << 20) + (imm & ((2 << 20) - 1))
         },
         CmdFormat::JMEM => {
             checkargs!(1);
             let adr : u32 = partok!(m => 1);
 
-            (cmd_data.0 as u32) + (adr << 12)
+            ((cmd_data.0 as u32) << 24) + adr
         }
     }
 }

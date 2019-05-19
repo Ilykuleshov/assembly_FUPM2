@@ -1,22 +1,22 @@
 macro_rules! getcode {
     ($word:expr) => {
-        ($word & 255) as u8
+        ($word >> 24) as u8
     }
 }
 
 macro_rules! prs {
-    (RR => $word:expr) => { (
-        (($word >> 8)  & 0b1111u32) as usize, 
-        (($word >> 12) & 0b1111u32) as usize, 
-        (($word.clone() as i32) >> 16) as u32
-        ) };
     (RM => $word:expr) => { (
-        (($word >> 8) & 0b1111u32) as usize, 
-        ($word >> 12)
+        (($word >> 20) & 15u32) as usize, 
+        ($word & ((2 << 20) - 1))
+        ) };
+    (RR => $word:expr) => { (
+        (($word >> 20) & 15u32) as usize, 
+        (($word >> 16) & 15u32) as usize, 
+        ((($word.clone().wrapping_add(2 << 16)) & ((2 << 16) - 1)) as u32).wrapping_sub(2 << 16)
         ) };
     (RI => $word:expr) => { (
-        (($word >> 8) & 0b1111u32) as usize, 
-        (($word.clone() as i32) >> 12) as u32
+        (($word >> 20) & 15u32) as usize, 
+        ((($word.clone().wrapping_add(2 << 19)) & ((2 << 20) - 1)) as u32).wrapping_sub(2 << 19)
         ) };
     (JM => $word:expr) => { {
         let (_, mem) : (_, u32) = prs!(RM => $word);

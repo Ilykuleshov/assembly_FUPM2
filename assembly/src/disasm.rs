@@ -5,8 +5,8 @@ use std::collections::HashMap;
 
 impl CPU {
 	fn disasm_cmd(&self, cmd : &Word, labeltbl: &HashMap<u32, u32>) -> String {
-		if *cmd == 0 { "word".to_string(); }
-		let code = &((cmd & 0b11111111) as u8);
+		if *cmd == 0 { return "word".to_owned(); }
+		let code = &getcode!(cmd);
 		let name : String = self.table.get_name(code).to_owned();
 		let (_, fmt) = self.table.get_code(&name);
 		let args;
@@ -14,12 +14,12 @@ impl CPU {
 		match fmt {
 			CmdFormat::RR   => { 
 				let (r1, r2, imm) = prs!(RR => cmd);
-				args = format!("r{} r{} {}", r1, r2, imm);
+				args = format!("r{} r{} {}", r1, r2, imm as i32);
 			}
 
 			CmdFormat::RI   => {
 				let (reg, imm) = prs!(RI => cmd);
-				args = format!("r{} {}", reg, imm);
+				args = format!("r{} {}", reg, imm as i32);
 			}
 
 			CmdFormat::RM   => {
