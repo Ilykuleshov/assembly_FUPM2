@@ -45,6 +45,7 @@ impl CPU {
 		for i in 0..self.state.progsz {
 			let line = self.state.mem[i as usize];
 				let code = getcode!(line);
+				
 				if code == 41 {
 					let (_, mem) = prs!(RM => line);
 					labeltbl.insert(mem, labelcnt);
